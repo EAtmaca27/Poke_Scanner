@@ -5,4 +5,3 @@
 
 # Ignore the entire JetBrains project folder (keeps local .idea, stops tracking in git)
 /.idea/
-
