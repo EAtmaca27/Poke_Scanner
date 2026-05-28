@@ -53,5 +53,5 @@ table_creation_query = """
 
 cursor_obj.executescript(table_creation_query)
 print("Tables created successfully")
-
 connection_obj.close()
+print("Connection closed")
