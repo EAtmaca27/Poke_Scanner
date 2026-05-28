@@ -1,7 +1,7 @@
 /.env
 /data/endpoints
 /data/pokemon.db
-
+endpoints.md
 
 # Ignore the entire JetBrains project folder (keeps local .idea, stops tracking in git)
 /.idea/
