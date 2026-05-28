@@ -2,13 +2,7 @@
 /data/endpoints
 /data/pokemon.db
 
-/.idea/misc.xml
-/.idea/modules.xml
-/.idea/Poke_Scanner.iml
-/.idea/inspectionProfiles/profiles_settings.xml
-/.idea/vcs.xml
 
-# entries merged from .idea/.gitignore
-/.idea/shelf/
-/.idea/workspace.xml
+# Ignore the entire JetBrains project folder (keeps local .idea, stops tracking in git)
+/.idea/
 
