@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}My Collection - Poke Scanner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>My Collection</h1>
+    <a href="{{ url_for('collection_add_page') }}" class="btn">Add Card</a>
+</div>
+
+<form class="form filter-form" method="GET" action="{{ url_for('collection') }}">
+    <div class="form-grid">
+        <div class="form-row">
+            <label for="name">Name</label>
+            <input type="text" id="name" name="name" value="{{ filters.get('name', '') }}">
+        </div>
+        <div class="form-row">
+            <label for="set_code">Set</label>
+            <select id="set_code" name="set_code">
+                <option value="">All Sets</option>
+                {% for s in set_options %}
+                <option value="{{ s.code }}" {% if filters.get('set_code') == s.code %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-row">
+            <label for="rarity">Rarity</label>
+            <select id="rarity" name="rarity">
+                <option value="">All Rarities</option>
+                {% for r in rarities %}
+                <option value="{{ r }}" {% if filters.get('rarity') == r %}selected{% endif %}>{{ r }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-row">
+            <label for="condition">Condition</label>
+            <select id="condition" name="condition">
+                <option value="">All Conditions</option>
+                {% for c in conditions %}
+                <option value="{{ c }}" {% if filters.get('condition') == c %}selected{% endif %}>{{ c }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-row">
+            <label for="min_hp">Min HP</label>
+            <input type="number" id="min_hp" name="min_hp" min="0" value="{{ filters.get('min_hp', '') }}">
+        </div>
+        <div class="form-row">
+            <label for="max_hp">Max HP</label>
+            <input type="number" id="max_hp" name="max_hp" min="0" value="{{ filters.get('max_hp', '') }}">
+        </div>
+    </div>
+    <div class="actions">
+        <button type="submit" class="btn">Filter</button>
+        <a href="{{ url_for('collection') }}" class="btn btn-secondary">Clear</a>
+    </div>
+</form>
+
+{% if cards %}
+<div class="grid">
+    {% for card in cards %}
+    <div class="card-tile owned-card">
+        {% if card.image_url %}
+        <img src="{{ card.image_url }}" alt="{{ card.name }}" loading="lazy">
+        {% endif %}
+        <div class="card-name">{{ card.name }}</div>
+        <div class="card-meta">
+            {% if card.set_name %}{{ card.set_name }}{% endif %}
+            #{{ card.number_in_set }}
+            {% if card.rarity %} &middot; {{ card.rarity }}{% endif %}
+        </div>
+        {% if card.hp %}<div class="badge">{{ card.hp }} HP</div>{% endif %}
+        <div class="badge">{{ card.condition }}</div>
+        <div class="card-meta">Qty: <strong>{{ card.quantity }}</strong></div>
+        {% if card.tcgplayer_price or card.cardmarket_price %}
+        <div class="card-meta">
+            {% if card.tcgplayer_price %}${{ "%.2f"|format(card.tcgplayer_price) }} TCG{% endif %}
+            {% if card.cardmarket_price %} | €{{ "%.2f"|format(card.cardmarket_price) }} Cardmarket{% endif %}
+        </div>
+        {% endif %}
+        <form class="card-form" method="POST" action="{{ url_for('collection_edit', card_id=card.card_id, condition=card.condition) }}">
+            <input type="number" name="quantity" value="{{ card.quantity }}" min="1" required>
+            <textarea name="notes" placeholder="Notes" rows="2">{{ card.notes or '' }}</textarea>
+            <button type="submit" class="btn">Update</button>
+        </form>
+        <form class="card-form" method="POST" action="{{ url_for('collection_delete', card_id=card.card_id, condition=card.condition) }}">
+            <button type="submit" class="btn btn-danger">Remove</button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="muted">Your collection is empty. <a href="{{ url_for('collection_add_page') }}">Add your first card</a>!</p>
+{% endif %}
+{% endblock %}

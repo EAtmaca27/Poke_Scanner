@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Add Card - Poke Scanner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Add Card to Collection</h1>
+</div>
+
+<form class="form" method="POST" action="{{ url_for('collection_search') }}">
+    <div class="form-row">
+        <label for="name">Card Name</label>
+        <input type="text" id="name" name="name" value="{{ search_name or '' }}" required>
+    </div>
+    <div class="form-row">
+        <label for="number">Card Number (optional)</label>
+        <input type="text" id="number" name="number" value="{{ search_number or '' }}" placeholder="e.g. 25">
+    </div>
+    <button type="submit" class="btn">Search TCG API</button>
+</form>
+
+{% if search_results %}
+<h2>Search Results</h2>
+<div class="grid">
+    {% for card in search_results %}
+    <div class="card-tile">
+        {% if card.image_small %}
+        <img src="{{ card.image_small }}" alt="{{ card.name }}" loading="lazy">
+        {% endif %}
+        <div class="card-name">{{ card.name }}</div>
+        <div class="card-meta">{{ card.set_name }} #{{ card.number }}</div>
+        {% if card.prices.tcgplayer or card.prices.cardmarket %}
+        <div class="card-meta">
+            {% if card.prices.tcgplayer.normal and card.prices.tcgplayer.normal.market %}
+                ${{ "%.2f"|format(card.prices.tcgplayer.normal.market) }}
+            {% endif %}
+        </div>
+        {% endif %}
+        <form class="card-form" method="POST" action="{{ url_for('collection_add') }}">
+            <input type="hidden" name="card_id" value="{{ card.id }}">
+            <div class="form-row">
+                <label for="qty-{{ loop.index }}">Quantity</label>
+                <input type="number" id="qty-{{ loop.index }}" name="quantity" value="1" min="1">
+            </div>
+            <div class="form-row">
+                <label for="cond-{{ loop.index }}">Condition</label>
+                <select id="cond-{{ loop.index }}" name="condition">
+                    {% for c in conditions %}
+                    <option value="{{ c }}" {% if c == 'Near Mint' %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn">Add to Collection</button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
