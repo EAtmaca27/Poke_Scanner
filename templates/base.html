@@ -48,5 +48,72 @@
     <footer class="footer">
         <p>Poke Scanner — built with Flask. Card data via <a href="https://pokemontcg.io" target="_blank" rel="noopener">pokemontcg.io</a>.</p>
     </footer>
+
+    <div id="chatbot-panel" class="chatbot-panel hidden">
+        <div class="chatbot-header">
+            <span>PokéChat</span>
+            <button id="chatbot-close" class="chatbot-close">&times;</button>
+        </div>
+        {% if session.username %}
+        <div id="chatbot-messages" class="chatbot-messages"></div>
+        <form id="chatbot-form" class="chatbot-input">
+            <input type="text" id="chatbot-input" placeholder="Ask about your collection..." autocomplete="off" required>
+            <button type="submit" class="btn">Send</button>
+        </form>
+        {% else %}
+        <div class="chatbot-login-prompt">
+            <p>Please <a href="{{ url_for('login') }}">log in</a> to use PokéChat.</p>
+        </div>
+        {% endif %}
+    </div>
+    <button id="chatbot-toggle" class="chatbot-toggle" title="Open PokéChat">💬</button>
+    <script>
+        const toggle = document.getElementById('chatbot-toggle');
+        const panel = document.getElementById('chatbot-panel');
+        const closeBtn = document.getElementById('chatbot-close');
+
+        toggle.addEventListener('click', () => {
+            panel.classList.toggle('hidden');
+        });
+        closeBtn.addEventListener('click', () => panel.classList.add('hidden'));
+
+        {% if session.username %}
+        const form = document.getElementById('chatbot-form');
+        const input = document.getElementById('chatbot-input');
+        const messages = document.getElementById('chatbot-messages');
+
+        toggle.addEventListener('click', () => {
+            if (!panel.classList.contains('hidden')) input.focus();
+        });
+
+        function addMessage(text, sender) {
+            const div = document.createElement('div');
+            div.className = 'chatbot-msg chatbot-msg-' + sender;
+            div.textContent = text;
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = input.value.trim();
+            if (!text) return;
+            addMessage(text, 'user');
+            input.value = '';
+
+            try {
+                const resp = await fetch('{{ url_for("chatbot") }}', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message: text})
+                });
+                const data = await resp.json();
+                addMessage(data.reply, 'bot');
+            } catch {
+                addMessage('Something went wrong. Please try again.', 'bot');
+            }
+        });
+        {% endif %}
+    </script>
 </body>
 </html>

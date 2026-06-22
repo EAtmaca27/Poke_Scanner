@@ -4,7 +4,7 @@ import requests
 import operations
 import user_operations
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from werkzeug.security import check_password_hash
 
 from db import get_db, close_db
@@ -230,6 +230,20 @@ def collection_delete(card_id, condition):
     user_operations.delete_user_card(conn, user_id, card_id, condition)
     flash("Entry removed.", "success")
     return redirect(url_for("collection"))
+
+
+@app.route("/chatbot", methods=["POST"])
+@login_required
+def chatbot():
+    data = request.get_json()
+    user_message = (data or {}).get("message", "").strip()
+
+    if not user_message:
+        return jsonify({"reply": "Please enter a message."}), 400
+
+    # TODO: integrate RAG + LLM here
+    reply = "I'm not connected to a brain yet — RAG and LLM integration coming soon!"
+    return jsonify({"reply": reply})
 
 
 if __name__ == "__main__":
