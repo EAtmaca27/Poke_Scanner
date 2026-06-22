@@ -3,6 +3,76 @@
 {% block title %}Inventory - Poke Scanner{% endblock %}
 
 {% block content %}
-<h1>Your Inventory</h1>
-<p>Your scanned cards will appear here.</p>
+<div class="page-header">
+    <h1>PokeScanner Inventory</h1>
+</div>
+
+<form class="form filter-form" method="GET" action="{{ url_for('inventory') }}">
+    <div class="form-grid">
+        <div class="form-row">
+            <label for="name">Name</label>
+            <input type="text" id="name" name="name" value="{{ filters.get('name', '') }}">
+        </div>
+        <div class="form-row">
+            <label for="set_code">Set</label>
+            <select id="set_code" name="set_code">
+                <option value="">All Sets</option>
+                {% for s in set_options %}
+                <option value="{{ s.code }}" {% if filters.get('set_code') == s.code %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-row">
+            <label for="rarity">Rarity</label>
+            <select id="rarity" name="rarity">
+                <option value="">All Rarities</option>
+                {% for r in rarities %}
+                <option value="{{ r }}" {% if filters.get('rarity') == r %}selected{% endif %}>{{ r }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-row">
+            <label for="min_hp">Min HP</label>
+            <input type="number" id="min_hp" name="min_hp" min="0" value="{{ filters.get('min_hp', '') }}">
+        </div>
+        <div class="form-row">
+            <label for="max_hp">Max HP</label>
+            <input type="number" id="max_hp" name="max_hp" min="0" value="{{ filters.get('max_hp', '') }}">
+        </div>
+    </div>
+    <div class="actions">
+        <button type="submit" class="btn">Filter</button>
+        <a href="{{ url_for('inventory') }}" class="btn btn-secondary">Clear</a>
+    </div>
+</form>
+
+{% if cards %}
+<div class="grid">
+    {% for card in cards %}
+    <div class="card-tile owned-card">
+        {% if card.image_url %}
+        <img src="{{ card.image_url }}" alt="{{ card.name }}" loading="lazy">
+        {% endif %}
+        <div class="card-name">{{ card.name }}</div>
+        <div class="card-meta">
+            {% if card.set_name %}{{ card.set_name }}{% endif %}
+            {% if card.number_in_set %}#{{ card.number_in_set }}{% endif %}
+            {% if card.rarity %} &middot; {{ card.rarity }}{% endif %}
+        </div>
+        {% if card.hp %}<div class="badge">{{ card.hp }} HP</div>{% endif %}
+        <div class="card-meta">
+            In inventory: <strong>{{ card.quantity }}</strong>
+        </div>
+        {% if card.tcgplayer_price or card.cardmarket_price %}
+        <div class="card-meta">
+            {% if card.tcgplayer_price %}${{ "%.2f"|format(card.tcgplayer_price) }} TCG{% endif %}
+            {% if card.cardmarket_price %} | €{{ "%.2f"|format(card.cardmarket_price) }} Cardmarket{% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="muted">No cards match your filters. Try a different search.</p>
+{% endif %}
 {% endblock %}

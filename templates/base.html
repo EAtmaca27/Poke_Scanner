@@ -7,15 +7,46 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <nav>
-        <a href="/">Home</a>
-        <a href="/about">About</a>
-        <a href="/login">Login</a>
-        <a href="/inventory">Inventory</a>
-    </nav>
+    <header class="navbar">
+        <div class="navbar-inner">
+            <a class="brand" href="{{ url_for('index') }}"><span class="pokeball" aria-hidden="true"></span> Poke Scanner</a>
+            <nav class="nav-links">
+                <a href="{{ url_for('inventory') }}">PokeScanner Inventory</a>
+                {% if session.username %}
+                <a href="{{ url_for('collection_add_page') }}">Add Card</a>
+                <a href="{{ url_for('collection') }}">My Collection</a>
+                {% endif %}
+            </nav>
+            <div class="nav-auth">
+                {% if session.username %}
+                    <span class="user-email">{{ session.username }}</span>
+                    <form method="POST" action="{{ url_for('logout') }}" class="inline-form">
+                        <button type="submit" class="link-button">Logout</button>
+                    </form>
+                {% else %}
+                    <a href="{{ url_for('login') }}">Login</a>
+                    <a href="{{ url_for('register') }}">Register</a>
+                {% endif %}
+            </div>
+        </div>
+    </header>
 
-    <main>
+    <main class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flashes">
+                    {% for category, message in messages %}
+                        <div class="flash flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
         {% block content %}{% endblock %}
     </main>
+
+    <footer class="footer">
+        <p>Poke Scanner — built with Flask. Card data via <a href="https://pokemontcg.io" target="_blank" rel="noopener">pokemontcg.io</a>.</p>
+    </footer>
 </body>
 </html>

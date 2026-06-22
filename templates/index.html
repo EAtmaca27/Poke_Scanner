@@ -1,9 +1,44 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}Home - Poke Scanner{% endblock %}
 
 {% block content %}
-<h1>Welcome to Poke Scanner</h1>
-<p>Scan and manage your Pokemon card collection.</p>
-<a href="/inventory">View Inventory</a>
+<div class="hero">
+    <h1>PokéScanner</h1>
+    <p>Scan, track, and manage your Pokémon card collection. Search the TCG database, browse prices, and keep inventory of your cards.</p>
+    <div class="hero-actions">
+        <a href="{{ url_for('inventory') }}" class="btn">Browse Inventory</a>
+        {% if session.username %}
+        <a href="{{ url_for('collection') }}" class="btn btn-secondary">My Collection</a>
+        {% else %}
+        <a href="{{ url_for('login') }}" class="btn btn-secondary">Login</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="feature-grid">
+    <div class="card-box">
+        <h3>📋 PokeScanner Inventory</h3>
+        <p>See every card that has been scanned or added by any user. Filter by set, rarity, HP, and more.</p>
+        <a href="{{ url_for('inventory') }}" class="btn">Browse</a>
+    </div>
+    <div class="card-box">
+        <h3>👤 My Collection</h3>
+        <p>Track your personal collection with quantity and condition tracking for each card.</p>
+        {% if session.username %}
+        <a href="{{ url_for('collection') }}" class="btn btn-secondary">View Collection</a>
+        {% else %}
+        <a href="{{ url_for('login') }}" class="btn btn-secondary">Login to View</a>
+        {% endif %}
+    </div>
+    <div class="card-box">
+        <h3>➕ Add Cards</h3>
+        <p>Search the official Pokémon TCG API, preview card images and prices, then add them to your collection.</p>
+        {% if session.username %}
+        <a href="{{ url_for('collection_add_page') }}" class="btn btn-secondary">Add a Card</a>
+        {% else %}
+        <a href="{{ url_for('login') }}" class="btn btn-secondary">Login to Add</a>
+        {% endif %}
+    </div>
+</div>
 {% endblock %}

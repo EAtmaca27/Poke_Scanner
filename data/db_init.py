@@ -26,13 +26,14 @@ table_creation_query = """
 
     CREATE TABLE cards (
         id varchar PRIMARY KEY,
-        set_id varchar references sets(id),
         name varchar NOT NULL,
-        hp int,
+        hp int ,
         body text,
-        set_code varchar,
-        number_in_set varchar,
+        set_code varchar NOT NULL,
+        number_in_set varchar NOT NULL,
         rarity varchar,
+        quantity int DEFAULT 0,
+        set_id varchar REFERENCES sets(id),
         image_url varchar,
         tcgplayer_price numeric,
         cardmarket_price numeric,
@@ -40,14 +41,14 @@ table_creation_query = """
     );
 
     CREATE TABLE user_cards (
-        id uuid PRIMARY KEY,
-        user_id uuid references users(id) NOT NULL,
-        card_id varchar references cards(id) NOT NULL,
-        quantity int default 1,
-        condition varchar default 'near_mint',
+        user_id uuid REFERENCES users(id) NOT NULL,
+        card_id varchar REFERENCES cards(id) NOT NULL,
+        quantity int DEFAULT 1,
+        condition varchar DEFAULT 'Near Mint',
         notes text,
         scanned_image_url varchar,
-        created_at timestamp default CURRENT_TIMESTAMP
+        created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, card_id, condition)
     );
 """
 
