@@ -1,5 +1,9 @@
 import os
 import sys
+
+from dotenv import load_dotenv
+load_dotenv()
+
 import requests
 import operations
 import user_operations
@@ -10,6 +14,7 @@ from werkzeug.security import check_password_hash
 from db import get_db, close_db
 from auth import get_current_user_id, login_required
 from tcgplayer_api import search_card_options
+from card_scanner import scan_with_cloud_llm, scan_with_tesseract
 
 
 CARD_CONDITIONS = ["Mint", "Near Mint", "Lightly Played", "Moderately Played", "Heavily Played", "Damaged"]
@@ -154,13 +159,14 @@ def collection_add_page():
 def collection_search():
     name = request.form.get("name", "").strip()
     number = request.form.get("number", "").strip() or None
+    hp = request.form.get("hp", "").strip() or None
 
     if not name:
         flash("Please enter a card name.", "error")
         return render_template("collection_add.html", conditions=CARD_CONDITIONS)
 
     try:
-        results = search_card_options(name, number)
+        results = search_card_options(name, number, hp=hp)
     except requests.RequestException:
         flash("The TCG API is currently unreachable. Please try again later.", "error")
         return render_template("collection_add.html", conditions=CARD_CONDITIONS)
@@ -170,8 +176,55 @@ def collection_search():
 
     return render_template(
         "collection_add.html", conditions=CARD_CONDITIONS, search_results=results,
-        search_name=name, search_number=number or "",
+        search_name=name, search_number=number or "", search_hp=hp or "",
     )
+
+
+@app.route("/collection/scan/cloud", methods=["POST"])
+@login_required
+def scan_cloud():
+    file = request.files.get("image")
+    if not file or not file.filename:
+        return jsonify({"error": "No image provided."}), 400
+
+    image_bytes = file.read()
+    mime_type = file.content_type or "image/png"
+
+    try:
+        result = scan_with_cloud_llm(image_bytes, mime_type)
+
+        conn = get_db()
+        user_id = get_current_user_id(conn)
+        conn.execute("""
+            INSERT INTO scan_logs (user_id, scan_type, model, input_tokens, output_tokens, total_tokens, duration_ms, extracted_name, extracted_hp, extracted_number)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, "cloud", result.get("model"), result.get("input_tokens"), result.get("output_tokens"),
+              result.get("total_tokens"), result.get("duration_ms"), result.get("name"), result.get("hp"), result.get("number")))
+        conn.commit()
+
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception:
+        return jsonify({"error": "Cloud scan failed. Check your API key and try again."}), 500
+
+
+@app.route("/collection/scan/local", methods=["POST"])
+@login_required
+def scan_local():
+    file = request.files.get("image")
+    if not file or not file.filename:
+        return jsonify({"error": "No image provided."}), 400
+
+    image_bytes = file.read()
+
+    try:
+        result = scan_with_tesseract(image_bytes)
+        return jsonify(result)
+    except ImportError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception:
+        return jsonify({"error": "Local scan failed. Make sure Tesseract is installed."}), 500
 
 
 @app.route("/collection", methods=["POST"])
@@ -230,6 +283,22 @@ def collection_delete(card_id, condition):
     user_operations.delete_user_card(conn, user_id, card_id, condition)
     flash("Entry removed.", "success")
     return redirect(url_for("collection"))
+
+
+@app.route("/scan-logs")
+@login_required
+def scan_logs():
+    if session.get("username") != "test":
+        flash("Access denied.", "error")
+        return redirect(url_for("index"))
+
+    conn = get_db()
+    logs = conn.execute("""
+        SELECT sl.*, u.username FROM scan_logs sl
+        JOIN users u ON sl.user_id = u.id
+        ORDER BY sl.created_at DESC
+    """).fetchall()
+    return render_template("scan_logs.html", logs=logs)
 
 
 @app.route("/chatbot", methods=["POST"])

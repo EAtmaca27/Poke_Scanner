@@ -7,11 +7,13 @@ BASE_URL = "https://api.pokemontcg.io/v2"
 _sets_cache = None
 
 
-def search_cards_api(name, number=None):
+def search_cards_api(name, number=None, hp=None):
     """Sucht Karten in der TCG-API, gibt Liste von Karten-Dicts zurück."""
     query = f'name:"{name}"'
     if number is not None:
         query += f" number:{number}"
+    if hp is not None:
+        query += f" hp:{hp}"
 
     resp = requests.get(
         f"{BASE_URL}/cards",
@@ -65,14 +67,14 @@ def get_set_options():
     return sorted(options, key=lambda o: o["name"])
 
 
-def search_card_options(name, number):
+def search_card_options(name, number, hp=None):
     """Sucht Karten anhand von Name und Nummer im Set.
 
     Da dieselbe Nummer in mehreren Sets vergeben sein kann, werden alle
     Treffer als vereinfachte Dicts (mit Bild und Set-Info) zurückgegeben,
     damit der Nutzer in der UI die richtige Karte auswählen kann.
     """
-    cards = search_cards_api(name, number)
+    cards = search_cards_api(name, number, hp=hp)
 
     options = []
     for card in cards:

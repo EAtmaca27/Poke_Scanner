@@ -572,3 +572,130 @@ h1, h2, h3 {
     color: var(--color-muted);
     font-size: 0.95rem;
 }
+
+/* Scan tabs */
+.scan-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid var(--color-border);
+    padding-bottom: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.scan-tab {
+    padding: 0.5rem 1rem;
+    border: none;
+    background: none;
+    font: inherit;
+    font-weight: 600;
+    color: var(--color-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.scan-tab:hover {
+    color: var(--color-text);
+}
+
+.scan-tab.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+
+.scan-tab-content {
+    display: none;
+}
+
+.scan-tab-content.active {
+    display: block;
+}
+
+/* Dropzone */
+.dropzone {
+    border: 2px dashed var(--color-border);
+    border-radius: var(--radius);
+    padding: 3rem 2rem;
+    text-align: center;
+    color: var(--color-muted);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    max-width: 480px;
+}
+
+.dropzone:hover {
+    border-color: var(--color-primary);
+    background: rgba(59, 76, 202, 0.03);
+}
+
+.dropzone.dragover {
+    border-color: var(--color-primary);
+    background: rgba(59, 76, 202, 0.08);
+}
+
+.scan-preview {
+    margin-top: 1rem;
+    max-width: 200px;
+}
+
+.scan-preview.hidden {
+    display: none;
+}
+
+.scan-preview img {
+    max-width: 100%;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+}
+
+.scan-status {
+    margin-top: 0.75rem;
+    font-size: 0.9rem;
+    max-width: 480px;
+}
+
+.scan-status.scanning {
+    color: var(--color-primary);
+}
+
+.scan-status.success {
+    color: var(--color-success);
+}
+
+.scan-status.error {
+    color: var(--color-danger);
+}
+
+/* Data table */
+.table-wrap {
+    overflow-x: auto;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.data-table th,
+.data-table td {
+    padding: 0.6rem 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+}
+
+.data-table th {
+    background: var(--color-bg);
+    font-weight: 600;
+    color: var(--color-muted);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.data-table tbody tr:hover {
+    background: rgba(59, 76, 202, 0.03);
+}
