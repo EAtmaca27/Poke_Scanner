@@ -180,6 +180,24 @@ def collection_search():
     )
 
 
+@app.route("/collection/search/json")
+@login_required
+def collection_search_json():
+    name = request.args.get("name", "").strip()
+    number = request.args.get("number", "").strip() or None
+    hp = request.args.get("hp", "").strip() or None
+
+    if not name:
+        return jsonify({"error": "Name is required."}), 400
+
+    try:
+        results = search_card_options(name, number, hp=hp)
+    except requests.RequestException:
+        return jsonify({"error": "TCG API is currently unreachable."}), 502
+
+    return jsonify({"results": results})
+
+
 @app.route("/collection/scan/cloud", methods=["POST"])
 @login_required
 def scan_cloud():
