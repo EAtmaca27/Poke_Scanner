@@ -10,6 +10,7 @@
 <div class="scan-tabs">
     <button class="scan-tab active" data-tab="manual">Manual Search</button>
     <button class="scan-tab" data-tab="cloud">Cloud Vision Scan</button>
+    <button class="scan-tab" data-tab="claude">Claude Scan</button>
     <button class="scan-tab" data-tab="local">Local OCR Scan</button>
 </div>
 
@@ -41,6 +42,18 @@
         <img id="cloud-preview-img" alt="Card preview">
     </div>
     <div id="cloud-status" class="scan-status"></div>
+</div>
+
+<div id="tab-claude" class="scan-tab-content">
+    <p class="muted">Drop a photo of your card to scan it with Claude Vision (Opus 4.8).</p>
+    <div class="dropzone" id="dropzone-claude">
+        <p>Drag & drop card image here<br><span class="muted">or click to select a file</span></p>
+        <input type="file" id="file-claude" accept="image/*" hidden>
+    </div>
+    <div id="claude-preview" class="scan-preview hidden">
+        <img id="claude-preview-img" alt="Card preview">
+    </div>
+    <div id="claude-status" class="scan-status"></div>
 </div>
 
 <div id="tab-local" class="scan-tab-content">
@@ -197,6 +210,7 @@
     }
 
     setupDropzone('dropzone-cloud', 'file-cloud', 'cloud-preview', 'cloud-preview-img', 'cloud-status', '{{ url_for("scan_cloud") }}', false);
+    setupDropzone('dropzone-claude', 'file-claude', 'claude-preview', 'claude-preview-img', 'claude-status', '{{ url_for("scan_claude_route") }}', false);
     setupDropzone('dropzone-local', 'file-local', 'local-preview', 'local-preview-img', 'local-status', '{{ url_for("scan_local") }}', true);
 </script>
 {% endblock %}

@@ -12,14 +12,27 @@ load_dotenv()
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL = "gpt-4o"
 
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+CLAUDE_MODEL = "claude-opus-4-8"
+
 SCAN_PROMPT = (
     "This is a Pokémon TCG card. Extract the following and "
     "return ONLY a JSON object with these keys:\n"
     '- "name": the Pokémon name on the card\n'
     '- "hp": the HP value (number only, or null)\n'
-    '- "number": the card number in the set (bottom of the card, e.g. "25/102", just the first number)\n'
+    '- "number": the card number in the set (bottom of the card, e.g. "25/102" → 25, strip any leading zeros)\n'
     "Return only the JSON, no markdown fences or extra text."
 )
+
+
+def _normalize_number(value):
+    """Strip leading zeros from a card number string (e.g. '001' → '1')."""
+    if not value:
+        return value
+    try:
+        return str(int(str(value).strip()))
+    except ValueError:
+        return value
 
 
 def scan_with_cloud_llm(image_bytes, mime_type="image/png"):
@@ -69,11 +82,62 @@ def scan_with_cloud_llm(image_bytes, mime_type="image/png"):
     text = re.sub(r"^```json\s*", "", text)
     text = re.sub(r"\s*```$", "", text)
     result = json.loads(text)
+    result["number"] = _normalize_number(result.get("number"))
 
     result["model"] = OPENAI_MODEL
     result["input_tokens"] = input_tokens
     result["output_tokens"] = output_tokens
     result["total_tokens"] = input_tokens + output_tokens
+    result["duration_ms"] = duration_ms
+
+    return result
+
+
+def scan_with_claude(image_bytes, mime_type="image/png"):
+    """Send card image to Claude's vision API and extract card info.
+    Returns dict with keys: name, hp, number, model, input_tokens, output_tokens, total_tokens, duration_ms.
+    """
+    if not ANTHROPIC_API_KEY:
+        raise ValueError("ANTHROPIC_API_KEY is not set in the .env file.")
+
+    import anthropic
+
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    image_data = base64.standard_b64encode(image_bytes).decode("utf-8")
+
+    start = time.perf_counter()
+
+    response = client.messages.create(
+        model=CLAUDE_MODEL,
+        max_tokens=256,
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": mime_type,
+                        "data": image_data,
+                    },
+                },
+                {"type": "text", "text": SCAN_PROMPT},
+            ],
+        }],
+    )
+
+    duration_ms = int((time.perf_counter() - start) * 1000)
+
+    text = next(b.text for b in response.content if b.type == "text")
+    text = re.sub(r"^```json\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    result = json.loads(text)
+    result["number"] = _normalize_number(result.get("number"))
+
+    result["model"] = CLAUDE_MODEL
+    result["input_tokens"] = response.usage.input_tokens
+    result["output_tokens"] = response.usage.output_tokens
+    result["total_tokens"] = response.usage.input_tokens + response.usage.output_tokens
     result["duration_ms"] = duration_ms
 
     return result
@@ -115,6 +179,6 @@ def scan_with_tesseract(image_bytes):
 
     bottom_text = ocr_crop((0, int(height * 0.85), width, height), scale=4)
     number_match = re.search(r"(\d{1,3})\s*/\s*\d{1,3}", bottom_text)
-    number = number_match.group(1) if number_match else None
+    number = _normalize_number(number_match.group(1)) if number_match else None
 
     return {"name": pokemon_name, "hp": hp, "number": number}

@@ -14,7 +14,7 @@ from werkzeug.security import check_password_hash
 from db import get_db, close_db
 from auth import get_current_user_id, login_required
 from tcgplayer_api import search_card_options
-from card_scanner import scan_with_cloud_llm, scan_with_tesseract
+from card_scanner import scan_with_cloud_llm, scan_with_claude, scan_with_tesseract
 
 
 CARD_CONDITIONS = ["Mint", "Near Mint", "Lightly Played", "Moderately Played", "Heavily Played", "Damaged"]
@@ -207,6 +207,35 @@ def scan_cloud():
         return jsonify({"error": str(e)}), 500
     except Exception:
         return jsonify({"error": "Cloud scan failed. Check your API key and try again."}), 500
+
+
+@app.route("/collection/scan/claude", methods=["POST"])
+@login_required
+def scan_claude_route():
+    file = request.files.get("image")
+    if not file or not file.filename:
+        return jsonify({"error": "No image provided."}), 400
+
+    image_bytes = file.read()
+    mime_type = file.content_type or "image/png"
+
+    try:
+        result = scan_with_claude(image_bytes, mime_type)
+
+        conn = get_db()
+        user_id = get_current_user_id(conn)
+        conn.execute("""
+            INSERT INTO scan_logs (user_id, scan_type, model, input_tokens, output_tokens, total_tokens, duration_ms, extracted_name, extracted_hp, extracted_number)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, "claude", result.get("model"), result.get("input_tokens"), result.get("output_tokens"),
+              result.get("total_tokens"), result.get("duration_ms"), result.get("name"), result.get("hp"), result.get("number")))
+        conn.commit()
+
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception:
+        return jsonify({"error": "Claude scan failed. Check your API key and try again."}), 500
 
 
 @app.route("/collection/scan/local", methods=["POST"])
