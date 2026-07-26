@@ -1,15 +1,21 @@
 import os
 import sys
-import requests
-import operations
-import user_operations
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session
-from werkzeug.security import check_password_hash
+from dotenv import load_dotenv
+load_dotenv()
 
-from db import get_db, close_db
-from auth import get_current_user_id, login_required
-from tcgplayer_api import search_card_options
+import requests  # noqa: E402
+import operations  # noqa: E402
+import user_operations  # noqa: E402
+
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify  # noqa: E402
+from werkzeug.security import check_password_hash  # noqa: E402
+
+from db import get_db, close_db  # noqa: E402
+from auth import get_current_user_id, login_required  # noqa: E402
+from tcgplayer_api import search_card_options  # noqa: E402
+from card_scanner import scan_with_cloud_llm, scan_with_claude, scan_with_kimi, scan_with_tesseract  # noqa: E402
+import chatbot as chatbot_module  # noqa: E402
 
 
 CARD_CONDITIONS = ["Mint", "Near Mint", "Lightly Played", "Moderately Played", "Heavily Played", "Damaged"]
@@ -77,6 +83,9 @@ def register():
 
 @app.route("/logout", methods=["POST"])
 def logout():
+    user_id = session.get("user_id")
+    if user_id:
+        chatbot_module.clear_history(get_db(), user_id)
     session.clear()
     flash("You have been logged out.", "success")
     return redirect(url_for("index"))
@@ -154,13 +163,14 @@ def collection_add_page():
 def collection_search():
     name = request.form.get("name", "").strip()
     number = request.form.get("number", "").strip() or None
+    hp = request.form.get("hp", "").strip() or None
 
     if not name:
         flash("Please enter a card name.", "error")
         return render_template("collection_add.html", conditions=CARD_CONDITIONS)
 
     try:
-        results = search_card_options(name, number)
+        results = search_card_options(name, number, hp=hp)
     except requests.RequestException:
         flash("The TCG API is currently unreachable. Please try again later.", "error")
         return render_template("collection_add.html", conditions=CARD_CONDITIONS)
@@ -170,8 +180,137 @@ def collection_search():
 
     return render_template(
         "collection_add.html", conditions=CARD_CONDITIONS, search_results=results,
-        search_name=name, search_number=number or "",
+        search_name=name, search_number=number or "", search_hp=hp or "",
     )
+
+
+@app.route("/collection/search/json")
+@login_required
+def collection_search_json():
+    name = request.args.get("name", "").strip()
+    number = request.args.get("number", "").strip() or None
+    hp = request.args.get("hp", "").strip() or None
+
+    if not name:
+        return jsonify({"error": "Name is required."}), 400
+
+    try:
+        results = search_card_options(name, number, hp=hp)
+    except requests.RequestException:
+        return jsonify({"error": "TCG API is currently unreachable."}), 502
+
+    return jsonify({"results": results})
+
+
+@app.route("/collection/scan/cloud", methods=["POST"])
+@login_required
+def scan_cloud():
+    file = request.files.get("image")
+    if not file or not file.filename:
+        return jsonify({"error": "No image provided."}), 400
+
+    image_bytes = file.read()
+    mime_type = file.content_type or "image/png"
+
+    try:
+        result = scan_with_cloud_llm(image_bytes, mime_type)
+
+        conn = get_db()
+        user_id = get_current_user_id(conn)
+        conn.execute("""
+            INSERT INTO scan_logs (user_id, scan_type, model, input_tokens, output_tokens, total_tokens,
+                                    duration_ms, extracted_name, extracted_hp, extracted_number)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, "cloud", result.get("model"), result.get("input_tokens"), result.get("output_tokens"),
+              result.get("total_tokens"), result.get("duration_ms"), result.get("name"), result.get("hp"),
+              result.get("number")))
+        conn.commit()
+
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception:
+        return jsonify({"error": "Cloud scan failed. Check your API key and try again."}), 500
+
+
+@app.route("/collection/scan/claude", methods=["POST"])
+@login_required
+def scan_claude_route():
+    file = request.files.get("image")
+    if not file or not file.filename:
+        return jsonify({"error": "No image provided."}), 400
+
+    image_bytes = file.read()
+    mime_type = file.content_type or "image/png"
+
+    try:
+        result = scan_with_claude(image_bytes, mime_type)
+
+        conn = get_db()
+        user_id = get_current_user_id(conn)
+        conn.execute("""
+            INSERT INTO scan_logs (user_id, scan_type, model, input_tokens, output_tokens, total_tokens,
+                                    duration_ms, extracted_name, extracted_hp, extracted_number)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, "claude", result.get("model"), result.get("input_tokens"), result.get("output_tokens"),
+              result.get("total_tokens"), result.get("duration_ms"), result.get("name"), result.get("hp"),
+              result.get("number")))
+        conn.commit()
+
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception:
+        return jsonify({"error": "Claude scan failed. Check your API key and try again."}), 500
+
+
+@app.route("/collection/scan/kimi", methods=["POST"])
+@login_required
+def scan_kimi_route():
+    file = request.files.get("image")
+    if not file or not file.filename:
+        return jsonify({"error": "No image provided."}), 400
+
+    image_bytes = file.read()
+    mime_type = file.content_type or "image/png"
+
+    try:
+        result = scan_with_kimi(image_bytes, mime_type)
+
+        conn = get_db()
+        user_id = get_current_user_id(conn)
+        conn.execute("""
+            INSERT INTO scan_logs (user_id, scan_type, model, input_tokens, output_tokens, total_tokens,
+                                    duration_ms, extracted_name, extracted_hp, extracted_number)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, "kimi", result.get("model"), result.get("input_tokens"), result.get("output_tokens"),
+              result.get("total_tokens"), result.get("duration_ms"), result.get("name"), result.get("hp"),
+              result.get("number")))
+        conn.commit()
+
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception:
+        return jsonify({"error": "Kimi scan failed. Check your NVIDIA_KIMI_API_KEY and try again."}), 500
+
+
+@app.route("/collection/scan/local", methods=["POST"])
+@login_required
+def scan_local():
+    file = request.files.get("image")
+    if not file or not file.filename:
+        return jsonify({"error": "No image provided."}), 400
+
+    image_bytes = file.read()
+
+    try:
+        result = scan_with_tesseract(image_bytes)
+        return jsonify(result)
+    except ImportError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception:
+        return jsonify({"error": "Local scan failed. Make sure Tesseract is installed."}), 500
 
 
 @app.route("/collection", methods=["POST"])
@@ -230,6 +369,52 @@ def collection_delete(card_id, condition):
     user_operations.delete_user_card(conn, user_id, card_id, condition)
     flash("Entry removed.", "success")
     return redirect(url_for("collection"))
+
+
+@app.route("/scan-logs")
+@login_required
+def scan_logs():
+    if session.get("username") != "test":
+        flash("Access denied.", "error")
+        return redirect(url_for("index"))
+
+    conn = get_db()
+    logs = conn.execute("""
+        SELECT sl.*, u.username FROM scan_logs sl
+        JOIN users u ON sl.user_id = u.id
+        ORDER BY sl.created_at DESC
+    """).fetchall()
+    return render_template("scan_logs.html", logs=logs)
+
+
+@app.route("/chatbot/history", methods=["GET"])
+@login_required
+def chatbot_history():
+    conn = get_db()
+    history = chatbot_module.get_history(conn, session["user_id"])
+    return jsonify({"messages": history})
+
+
+@app.route("/chatbot", methods=["POST"])
+@login_required
+def chatbot():
+    data = request.get_json()
+    user_message = (data or {}).get("message", "").strip()
+
+    if not user_message:
+        return jsonify({"reply": "Please enter a message."}), 400
+
+    conn = get_db()
+    user_id = session["user_id"]
+
+    try:
+        reply = chatbot_module.chat(conn, user_id, user_message)
+    except ValueError as e:
+        return jsonify({"reply": f"Configuration error: {e}"}), 500
+    except Exception:
+        return jsonify({"reply": "Something went wrong. Please try again."}), 500
+
+    return jsonify({"reply": reply})
 
 
 if __name__ == "__main__":

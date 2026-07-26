@@ -15,7 +15,7 @@ def add_set(conn, set_id, name, set_code, release_date=None, total_cards=None, s
 
 
 def add_card(conn, card_id, name, set_code, number_in_set, hp=None, body=None, rarity=None,
-              set_id=None, image_url=None, tcgplayer_price=None, cardmarket_price=None):
+             set_id=None, image_url=None, tcgplayer_price=None, cardmarket_price=None):
     cur = conn.cursor()
 
     if body is not None:
@@ -194,6 +194,7 @@ def import_card(conn, card):
         number_in_set=card["number"],
         hp=hp,
         body=body,
+        rarity=card.get("rarity"),
         set_id=set_info["id"],
         image_url=card["images"]["large"],
         tcgplayer_price=tcgplayer_price,
@@ -201,4 +202,3 @@ def import_card(conn, card):
     )
 
     return card["id"] if added else None
-

@@ -7,17 +7,81 @@
     <h1>Add Card to Collection</h1>
 </div>
 
-<form class="form" method="POST" action="{{ url_for('collection_search') }}">
-    <div class="form-row">
-        <label for="name">Card Name</label>
-        <input type="text" id="name" name="name" value="{{ search_name or '' }}" required>
+<div class="scan-tabs">
+    <button class="scan-tab active" data-tab="manual">Manual Search</button>
+    <button class="scan-tab" data-tab="cloud">OpenAI Vision Scan</button>
+    <button class="scan-tab" data-tab="claude">Claude Scan</button>
+    <button class="scan-tab" data-tab="kimi">Kimi Scan</button>
+    <button class="scan-tab" data-tab="local">Local OCR Scan</button>
+</div>
+
+<div id="tab-manual" class="scan-tab-content active">
+    <form class="form" method="POST" action="{{ url_for('collection_search') }}">
+        <div class="form-row">
+            <label for="name">Card Name</label>
+            <input type="text" id="name" name="name" value="{{ search_name or '' }}" required>
+        </div>
+        <div class="form-row">
+            <label for="number">Card Number (optional)</label>
+            <input type="text" id="number" name="number" value="{{ search_number or '' }}" placeholder="e.g. 25">
+        </div>
+        <div class="form-row">
+            <label for="hp">HP (optional)</label>
+            <input type="number" id="hp" name="hp" value="{{ search_hp or '' }}" placeholder="e.g. 60" min="1">
+        </div>
+        <button type="submit" class="btn">Search TCG API</button>
+    </form>
+</div>
+
+<div id="tab-cloud" class="scan-tab-content">
+    <p class="muted">Drop a photo of your card to scan it with a cloud vision model.</p>
+    <div class="dropzone" id="dropzone-cloud">
+        <p>Drag & drop card image here<br><span class="muted">or click to select a file</span></p>
+        <input type="file" id="file-cloud" accept="image/*" hidden>
     </div>
-    <div class="form-row">
-        <label for="number">Card Number (optional)</label>
-        <input type="text" id="number" name="number" value="{{ search_number or '' }}" placeholder="e.g. 25">
+    <div id="cloud-preview" class="scan-preview hidden">
+        <img id="cloud-preview-img" alt="Card preview">
     </div>
-    <button type="submit" class="btn">Search TCG API</button>
-</form>
+    <div id="cloud-status" class="scan-status"></div>
+</div>
+
+<div id="tab-claude" class="scan-tab-content">
+    <p class="muted">Drop a photo of your card to scan it with Claude Vision (Opus 4.8).</p>
+    <div class="dropzone" id="dropzone-claude">
+        <p>Drag & drop card image here<br><span class="muted">or click to select a file</span></p>
+        <input type="file" id="file-claude" accept="image/*" hidden>
+    </div>
+    <div id="claude-preview" class="scan-preview hidden">
+        <img id="claude-preview-img" alt="Card preview">
+    </div>
+    <div id="claude-status" class="scan-status"></div>
+</div>
+
+<div id="tab-kimi" class="scan-tab-content">
+    <p class="muted">Drop a photo of your card to scan it with Llama 3.2 Vision (via NVIDIA NIM).</p>
+    <div class="dropzone" id="dropzone-kimi">
+        <p>Drag & drop card image here<br><span class="muted">or click to select a file</span></p>
+        <input type="file" id="file-kimi" accept="image/*" hidden>
+    </div>
+    <div id="kimi-preview" class="scan-preview hidden">
+        <img id="kimi-preview-img" alt="Card preview">
+    </div>
+    <div id="kimi-status" class="scan-status"></div>
+</div>
+
+<div id="tab-local" class="scan-tab-content">
+    <p class="muted">Drop a photo of your card to scan it locally with Tesseract OCR.</p>
+    <div class="dropzone" id="dropzone-local">
+        <p>Drag & drop card image here<br><span class="muted">or click to select a file</span></p>
+        <input type="file" id="file-local" accept="image/*" hidden>
+    </div>
+    <div id="local-preview" class="scan-preview hidden">
+        <img id="local-preview-img" alt="Card preview">
+    </div>
+    <div id="local-status" class="scan-status"></div>
+</div>
+
+<div id="scan-results"></div>
 
 {% if search_results %}
 <h2>Search Results</h2>
@@ -56,4 +120,150 @@
     {% endfor %}
 </div>
 {% endif %}
+
+<script>
+    const tabs = document.querySelectorAll('.scan-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.scan-tab-content').forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        });
+    });
+
+    function escHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    const CONDITIONS = {{ conditions | tojson }};
+    const SEARCH_URL = '{{ url_for("collection_search_json") }}';
+    const ADD_URL = '{{ url_for("collection_add") }}';
+    const scanResults = document.getElementById('scan-results');
+
+    async function backgroundSearch(name, number, hp, statusEl) {
+        const params = new URLSearchParams({ name });
+        if (number) params.set('number', number);
+        if (hp) params.set('hp', hp);
+
+        try {
+            const resp = await fetch(SEARCH_URL + '?' + params);
+            const data = await resp.json();
+
+            if (data.error) {
+                statusEl.innerHTML += `<br><span class="muted error">${escHtml(data.error)}</span>`;
+                return;
+            }
+
+            const cards = data.results || [];
+            if (cards.length === 0) {
+                statusEl.innerHTML += '<br><span class="muted">No cards found in TCG API.</span>';
+                return;
+            }
+
+            statusEl.innerHTML += `<br><span class="muted">Found ${cards.length} result${cards.length !== 1 ? 's' : ''}.</span>`;
+
+            const condOpts = CONDITIONS.map(c =>
+                `<option value="${escHtml(c)}"${c === 'Near Mint' ? ' selected' : ''}>${escHtml(c)}</option>`
+            ).join('');
+
+            const tiles = cards.map(card => {
+                const market = card.prices?.tcgplayer?.normal?.market;
+                const priceHtml = market ? `<div class="card-meta">$${market.toFixed(2)}</div>` : '';
+                const imgHtml = card.image_small
+                    ? `<img src="${escHtml(card.image_small)}" alt="${escHtml(card.name)}" loading="lazy">`
+                    : '';
+                return `<div class="card-tile">
+                    ${imgHtml}
+                    <div class="card-name">${escHtml(card.name)}</div>
+                    <div class="card-meta">${escHtml(card.set_name)} #${escHtml(String(card.number))}</div>
+                    ${priceHtml}
+                    <form class="card-form" method="POST" action="${ADD_URL}">
+                        <input type="hidden" name="card_id" value="${escHtml(card.id)}">
+                        <div class="form-row">
+                            <label>Quantity</label>
+                            <input type="number" name="quantity" value="1" min="1">
+                        </div>
+                        <div class="form-row">
+                            <label>Condition</label>
+                            <select name="condition">${condOpts}</select>
+                        </div>
+                        <button type="submit" class="btn">Add to Collection</button>
+                    </form>
+                </div>`;
+            }).join('');
+
+            scanResults.innerHTML = `<h2>Search Results</h2><div class="grid">${tiles}</div>`;
+        } catch {
+            statusEl.innerHTML += '<br><span class="muted">TCG API search failed.</span>';
+        }
+    }
+
+    function setupDropzone(dropzoneId, fileInputId, previewId, previewImgId, statusId, scanUrl) {
+        const dropzone = document.getElementById(dropzoneId);
+        const fileInput = document.getElementById(fileInputId);
+        const preview = document.getElementById(previewId);
+        const previewImg = document.getElementById(previewImgId);
+        const status = document.getElementById(statusId);
+
+        dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) handleFile(file);
+        });
+        fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => { previewImg.src = e.target.result; preview.classList.remove('hidden'); };
+            reader.readAsDataURL(file);
+            uploadAndScan(file);
+        }
+
+        async function uploadAndScan(file) {
+            status.textContent = 'Scanning...';
+            status.className = 'scan-status scanning';
+            scanResults.innerHTML = '';
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const resp = await fetch(scanUrl, { method: 'POST', body: formData });
+                const data = await resp.json();
+
+                if (data.error) {
+                    status.textContent = data.error;
+                    status.className = 'scan-status error';
+                    return;
+                }
+
+                const name = data.name || '';
+                const number = data.number || '';
+                const hp = data.hp || '';
+
+                status.innerHTML = `Scan successful! Detected: <strong>${escHtml(name)}</strong>` +
+                    (hp ? ` · ${hp} HP` : '') +
+                    (number ? ` · #${number}` : '') +
+                    '<br><span class="muted">Searching TCG API…</span>';
+                status.className = 'scan-status success';
+
+                backgroundSearch(name, number, hp, status);
+            } catch {
+                status.textContent = 'Scan failed. Please try again.';
+                status.className = 'scan-status error';
+            }
+        }
+    }
+
+    setupDropzone('dropzone-cloud', 'file-cloud', 'cloud-preview', 'cloud-preview-img', 'cloud-status', '{{ url_for("scan_cloud") }}');
+    setupDropzone('dropzone-claude', 'file-claude', 'claude-preview', 'claude-preview-img', 'claude-status', '{{ url_for("scan_claude_route") }}');
+    setupDropzone('dropzone-kimi', 'file-kimi', 'kimi-preview', 'kimi-preview-img', 'kimi-status', '{{ url_for("scan_kimi_route") }}');
+    setupDropzone('dropzone-local', 'file-local', 'local-preview', 'local-preview-img', 'local-status', '{{ url_for("scan_local") }}');
+</script>
 {% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Scan Logs - Poke Scanner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Scan Logs</h1>
+</div>
+
+{% if logs %}
+<div class="table-wrap">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>User</th>
+                <th>Type</th>
+                <th>Model</th>
+                <th>Input Tokens</th>
+                <th>Output Tokens</th>
+                <th>Total Tokens</th>
+                <th>Duration</th>
+                <th>Extracted</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.created_at }}</td>
+                <td>{{ log.username }}</td>
+                <td>{{ log.scan_type }}</td>
+                <td>{{ log.model or '—' }}</td>
+                <td>{{ log.input_tokens if log.input_tokens is not none else '—' }}</td>
+                <td>{{ log.output_tokens if log.output_tokens is not none else '—' }}</td>
+                <td>{{ log.total_tokens if log.total_tokens is not none else '—' }}</td>
+                <td>{{ '%d ms'|format(log.duration_ms) if log.duration_ms is not none else '—' }}</td>
+                <td>{{ log.extracted_name or '?' }}{% if log.extracted_hp %} · {{ log.extracted_hp }} HP{% endif %}{% if log.extracted_number %} · #{{ log.extracted_number }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="muted">No scan logs yet.</p>
+{% endif %}
+{% endblock %}
