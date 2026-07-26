@@ -9,8 +9,9 @@
 
 <div class="scan-tabs">
     <button class="scan-tab active" data-tab="manual">Manual Search</button>
-    <button class="scan-tab" data-tab="cloud">Cloud Vision Scan</button>
+    <button class="scan-tab" data-tab="cloud">OpenAI Vision Scan</button>
     <button class="scan-tab" data-tab="claude">Claude Scan</button>
+    <button class="scan-tab" data-tab="kimi">Kimi Scan</button>
     <button class="scan-tab" data-tab="local">Local OCR Scan</button>
 </div>
 
@@ -54,6 +55,18 @@
         <img id="claude-preview-img" alt="Card preview">
     </div>
     <div id="claude-status" class="scan-status"></div>
+</div>
+
+<div id="tab-kimi" class="scan-tab-content">
+    <p class="muted">Drop a photo of your card to scan it with Llama 3.2 Vision (via NVIDIA NIM).</p>
+    <div class="dropzone" id="dropzone-kimi">
+        <p>Drag & drop card image here<br><span class="muted">or click to select a file</span></p>
+        <input type="file" id="file-kimi" accept="image/*" hidden>
+    </div>
+    <div id="kimi-preview" class="scan-preview hidden">
+        <img id="kimi-preview-img" alt="Card preview">
+    </div>
+    <div id="kimi-status" class="scan-status"></div>
 </div>
 
 <div id="tab-local" class="scan-tab-content">
@@ -250,6 +263,7 @@
 
     setupDropzone('dropzone-cloud', 'file-cloud', 'cloud-preview', 'cloud-preview-img', 'cloud-status', '{{ url_for("scan_cloud") }}');
     setupDropzone('dropzone-claude', 'file-claude', 'claude-preview', 'claude-preview-img', 'claude-status', '{{ url_for("scan_claude_route") }}');
+    setupDropzone('dropzone-kimi', 'file-kimi', 'kimi-preview', 'kimi-preview-img', 'kimi-status', '{{ url_for("scan_kimi_route") }}');
     setupDropzone('dropzone-local', 'file-local', 'local-preview', 'local-preview-img', 'local-status', '{{ url_for("scan_local") }}');
 </script>
 {% endblock %}

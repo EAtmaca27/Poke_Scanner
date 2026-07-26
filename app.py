@@ -4,17 +4,18 @@ import sys
 from dotenv import load_dotenv
 load_dotenv()
 
-import requests
-import operations
-import user_operations
+import requests  # noqa: E402
+import operations  # noqa: E402
+import user_operations  # noqa: E402
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
-from werkzeug.security import check_password_hash
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify  # noqa: E402
+from werkzeug.security import check_password_hash  # noqa: E402
 
-from db import get_db, close_db
-from auth import get_current_user_id, login_required
-from tcgplayer_api import search_card_options
-from card_scanner import scan_with_cloud_llm, scan_with_claude, scan_with_tesseract
+from db import get_db, close_db  # noqa: E402
+from auth import get_current_user_id, login_required  # noqa: E402
+from tcgplayer_api import search_card_options  # noqa: E402
+from card_scanner import scan_with_cloud_llm, scan_with_claude, scan_with_kimi, scan_with_tesseract  # noqa: E402
+import chatbot as chatbot_module  # noqa: E402
 
 
 CARD_CONDITIONS = ["Mint", "Near Mint", "Lightly Played", "Moderately Played", "Heavily Played", "Damaged"]
@@ -82,6 +83,9 @@ def register():
 
 @app.route("/logout", methods=["POST"])
 def logout():
+    user_id = session.get("user_id")
+    if user_id:
+        chatbot_module.clear_history(get_db(), user_id)
     session.clear()
     flash("You have been logged out.", "success")
     return redirect(url_for("index"))
@@ -214,10 +218,12 @@ def scan_cloud():
         conn = get_db()
         user_id = get_current_user_id(conn)
         conn.execute("""
-            INSERT INTO scan_logs (user_id, scan_type, model, input_tokens, output_tokens, total_tokens, duration_ms, extracted_name, extracted_hp, extracted_number)
+            INSERT INTO scan_logs (user_id, scan_type, model, input_tokens, output_tokens, total_tokens,
+                                    duration_ms, extracted_name, extracted_hp, extracted_number)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (user_id, "cloud", result.get("model"), result.get("input_tokens"), result.get("output_tokens"),
-              result.get("total_tokens"), result.get("duration_ms"), result.get("name"), result.get("hp"), result.get("number")))
+              result.get("total_tokens"), result.get("duration_ms"), result.get("name"), result.get("hp"),
+              result.get("number")))
         conn.commit()
 
         return jsonify(result)
@@ -243,10 +249,12 @@ def scan_claude_route():
         conn = get_db()
         user_id = get_current_user_id(conn)
         conn.execute("""
-            INSERT INTO scan_logs (user_id, scan_type, model, input_tokens, output_tokens, total_tokens, duration_ms, extracted_name, extracted_hp, extracted_number)
+            INSERT INTO scan_logs (user_id, scan_type, model, input_tokens, output_tokens, total_tokens,
+                                    duration_ms, extracted_name, extracted_hp, extracted_number)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (user_id, "claude", result.get("model"), result.get("input_tokens"), result.get("output_tokens"),
-              result.get("total_tokens"), result.get("duration_ms"), result.get("name"), result.get("hp"), result.get("number")))
+              result.get("total_tokens"), result.get("duration_ms"), result.get("name"), result.get("hp"),
+              result.get("number")))
         conn.commit()
 
         return jsonify(result)
@@ -254,6 +262,37 @@ def scan_claude_route():
         return jsonify({"error": str(e)}), 500
     except Exception:
         return jsonify({"error": "Claude scan failed. Check your API key and try again."}), 500
+
+
+@app.route("/collection/scan/kimi", methods=["POST"])
+@login_required
+def scan_kimi_route():
+    file = request.files.get("image")
+    if not file or not file.filename:
+        return jsonify({"error": "No image provided."}), 400
+
+    image_bytes = file.read()
+    mime_type = file.content_type or "image/png"
+
+    try:
+        result = scan_with_kimi(image_bytes, mime_type)
+
+        conn = get_db()
+        user_id = get_current_user_id(conn)
+        conn.execute("""
+            INSERT INTO scan_logs (user_id, scan_type, model, input_tokens, output_tokens, total_tokens,
+                                    duration_ms, extracted_name, extracted_hp, extracted_number)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, "kimi", result.get("model"), result.get("input_tokens"), result.get("output_tokens"),
+              result.get("total_tokens"), result.get("duration_ms"), result.get("name"), result.get("hp"),
+              result.get("number")))
+        conn.commit()
+
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception:
+        return jsonify({"error": "Kimi scan failed. Check your NVIDIA_KIMI_API_KEY and try again."}), 500
 
 
 @app.route("/collection/scan/local", methods=["POST"])
@@ -348,6 +387,14 @@ def scan_logs():
     return render_template("scan_logs.html", logs=logs)
 
 
+@app.route("/chatbot/history", methods=["GET"])
+@login_required
+def chatbot_history():
+    conn = get_db()
+    history = chatbot_module.get_history(conn, session["user_id"])
+    return jsonify({"messages": history})
+
+
 @app.route("/chatbot", methods=["POST"])
 @login_required
 def chatbot():
@@ -357,8 +404,16 @@ def chatbot():
     if not user_message:
         return jsonify({"reply": "Please enter a message."}), 400
 
-    # TODO: integrate RAG + LLM here
-    reply = "I'm not connected to a brain yet — RAG and LLM integration coming soon!"
+    conn = get_db()
+    user_id = session["user_id"]
+
+    try:
+        reply = chatbot_module.chat(conn, user_id, user_message)
+    except ValueError as e:
+        return jsonify({"reply": f"Configuration error: {e}"}), 500
+    except Exception:
+        return jsonify({"reply": "Something went wrong. Please try again."}), 500
+
     return jsonify({"reply": reply})
 
 

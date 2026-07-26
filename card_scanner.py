@@ -4,23 +4,42 @@ import os
 import re
 import time
 import requests
+import anthropic
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-OPENAI_MODEL = "gpt-4o"
+OPENAI_MODEL = "gpt-4.1-mini"
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = "claude-opus-4-8"
 
+NVIDIA_KIMI_API_KEY = os.environ.get("NVIDIA_KIMI_API_KEY", "")
+KIMI_MODEL = "meta/llama-3.2-11b-vision-instruct"
+
 SCAN_PROMPT = (
     "This is a Pokémon TCG card. Extract the following and "
     "return ONLY a JSON object with these keys:\n"
-    '- "name": the Pokémon name on the card\n'
+    '- "name": the Pokémon name on the card. If the name has an uppercase "GX" or "EX" '
+    'suffix (Sun & Moon / XY era cards), join it with a hyphen and no space (e.g. '
+    '"Charizard-GX", "Mewtwo-EX"). If it has a lowercase italic "ex" suffix (modern '
+    'Scarlet & Violet era cards), keep it separated by a space, lowercase (e.g. '
+    '"Garchomp ex", "Charizard ex") — do NOT hyphenate this one. GX and modern ex badges can '
+    'look similar at a glance, so do not decide from the suffix badge alone: check the rule '
+    'box text near the bottom of the card. If it reads "Pokémon ex rule" / "Pokémon-ex", it '
+    'is a modern ex card. If it instead references a GX attack or "Pokémon-GX rule", it is a '
+    'GX card. This distinction matches how the card database stores these names.\n'
     '- "hp": the HP value (number only, or null)\n'
-    '- "number": the card number in the set (bottom of the card, e.g. "25/102" → 25, strip any leading zeros)\n'
+    '- "number": the card number in the set (bottom of the card, e.g. "25/102" → 25, '
+    'strip any leading zeros)\n'
+    "\n"
+    "This is really important and requires the utmost attention: "
+    "Only report a value if it is 100% clearly and unambiguously readable on the card. "
+    "If any value is blurry, cut off, obscured, or you are not completely certain, return "
+    "null for that key instead of guessing. Never hallucinate a plausible-looking name, HP, "
+    "or number — an incorrect value is worse than a missing one.\n"
     "Return only the JSON, no markdown fences or extra text."
 )
 
@@ -100,8 +119,6 @@ def scan_with_claude(image_bytes, mime_type="image/png"):
     if not ANTHROPIC_API_KEY:
         raise ValueError("ANTHROPIC_API_KEY is not set in the .env file.")
 
-    import anthropic
-
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     image_data = base64.standard_b64encode(image_bytes).decode("utf-8")
 
@@ -138,6 +155,63 @@ def scan_with_claude(image_bytes, mime_type="image/png"):
     result["input_tokens"] = response.usage.input_tokens
     result["output_tokens"] = response.usage.output_tokens
     result["total_tokens"] = response.usage.input_tokens + response.usage.output_tokens
+    result["duration_ms"] = duration_ms
+
+    return result
+
+
+def scan_with_kimi(image_bytes, mime_type="image/png"):
+    """Send card image to Moonshotai Kimi-K2.6 via NVIDIA NIM and extract card info.
+    Returns dict with keys: name, hp, number, model, input_tokens, output_tokens, total_tokens, duration_ms.
+    """
+    if not NVIDIA_KIMI_API_KEY:
+        raise ValueError("NVIDIA_KIMI_API_KEY is not set in the .env file.")
+
+    b64_image = base64.b64encode(image_bytes).decode("utf-8")
+    data_url = f"data:{mime_type};base64,{b64_image}"
+
+    start = time.perf_counter()
+
+    response = requests.post(
+        "https://integrate.api.nvidia.com/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {NVIDIA_KIMI_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": KIMI_MODEL,
+            "max_tokens": 256,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": data_url}},
+                        {"type": "text", "text": SCAN_PROMPT},
+                    ],
+                }
+            ],
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+
+    duration_ms = int((time.perf_counter() - start) * 1000)
+
+    body = response.json()
+    usage = body.get("usage", {})
+    input_tokens = usage.get("prompt_tokens", 0)
+    output_tokens = usage.get("completion_tokens", 0)
+
+    text = body["choices"][0]["message"]["content"].strip()
+    text = re.sub(r"^```json\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    result = json.loads(text)
+    result["number"] = _normalize_number(result.get("number"))
+
+    result["model"] = KIMI_MODEL
+    result["input_tokens"] = input_tokens
+    result["output_tokens"] = output_tokens
+    result["total_tokens"] = input_tokens + output_tokens
     result["duration_ms"] = duration_ms
 
     return result

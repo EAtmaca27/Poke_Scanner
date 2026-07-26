@@ -5,6 +5,7 @@ from werkzeug.security import generate_password_hash
 
 # ----- User Cruds -----
 
+
 def add_user(conn, username, password):
     cur = conn.cursor()
     user_id = str(uuid.uuid4())
@@ -31,15 +32,15 @@ def add_user_card(conn, user_id, card_id, quantity=1, condition="Near Mint", not
 
     cur.execute("""
         SELECT user_id FROM user_cards
-        WHERE user_id = ? AND card_id = ? AND condition = ?""",
-        (user_id, card_id, condition))
+        WHERE user_id = ? AND card_id = ? AND condition = ?
+    """, (user_id, card_id, condition))
 
     if cur.fetchone():
         cur.execute("""
             UPDATE user_cards
             SET quantity = quantity + ?
-            WHERE user_id = ? AND card_id = ? AND condition = ?""",
-            (quantity, user_id, card_id, condition))
+            WHERE user_id = ? AND card_id = ? AND condition = ?
+        """, (quantity, user_id, card_id, condition))
     else:
         cur.execute("""
             INSERT INTO user_cards (user_id, card_id, quantity, condition, notes)
@@ -51,7 +52,8 @@ def add_user_card(conn, user_id, card_id, quantity=1, condition="Near Mint", not
     return "Card added to inventory"
 
 
-def get_user_cards(conn, user_id, name=None, min_hp=None, max_hp=None, set_code=None, quantity=None, condition=None, rarity=None):
+def get_user_cards(conn, user_id, name=None, min_hp=None, max_hp=None, set_code=None,
+                   quantity=None, condition=None, rarity=None):
     curr = conn.cursor()
 
     conditions = ["uc.user_id = ?"]
@@ -85,7 +87,8 @@ def get_user_cards(conn, user_id, name=None, min_hp=None, max_hp=None, set_code=
         conditions.append("c.rarity = ?")
         values.append(rarity)
 
-    query = f"""SELECT uc.*, c.name, c.hp, c.body, c.set_code, c.number_in_set, c.rarity, c.image_url, c.tcgplayer_price, c.cardmarket_price, s.name AS set_name
+    query = f"""SELECT uc.*, c.name, c.hp, c.body, c.set_code, c.number_in_set, c.rarity,
+                       c.image_url, c.tcgplayer_price, c.cardmarket_price, s.name AS set_name
                 FROM user_cards uc
                 JOIN cards c ON uc.card_id = c.id
                 LEFT JOIN sets s ON c.set_id = s.id
@@ -126,8 +129,8 @@ def delete_user_card(conn, user_id, card_id, condition):
     curr = conn.cursor()
     curr.execute("""
         SELECT quantity FROM user_cards
-        WHERE user_id = ? AND card_id = ? AND condition = ?""",
-        (user_id, card_id, condition))
+        WHERE user_id = ? AND card_id = ? AND condition = ?
+    """, (user_id, card_id, condition))
     row = curr.fetchone()
 
     if not row:
@@ -136,13 +139,13 @@ def delete_user_card(conn, user_id, card_id, condition):
     if row["quantity"] > 1:
         curr.execute("""
             UPDATE user_cards SET quantity = quantity - 1
-            WHERE user_id = ? AND card_id = ? AND condition = ?""",
-            (user_id, card_id, condition))
+            WHERE user_id = ? AND card_id = ? AND condition = ?
+        """, (user_id, card_id, condition))
     else:
         curr.execute("""
             DELETE FROM user_cards
-            WHERE user_id = ? AND card_id = ? AND condition = ?""",
-            (user_id, card_id, condition))
+            WHERE user_id = ? AND card_id = ? AND condition = ?
+        """, (user_id, card_id, condition))
 
     conn.commit()
     return True

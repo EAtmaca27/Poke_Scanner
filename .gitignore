@@ -2,6 +2,10 @@
 /data/endpoints
 /data/pokemon.db
 endpoints.md
+PRAESENTATION_VORGABEN.md
+SCAN_LOGS.md
+/presentation
+app_run.log
 
 # Ignore the entire JetBrains project folder (keeps local .idea, stops tracking in git)
 /.idea/

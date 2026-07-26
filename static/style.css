@@ -478,8 +478,8 @@ h1, h2, h3 {
     position: fixed;
     bottom: 5.5rem;
     right: 1.5rem;
-    width: 360px;
-    max-height: 480px;
+    width: 396px;
+    max-height: 528px;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
@@ -520,8 +520,8 @@ h1, h2, h3 {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    min-height: 200px;
-    max-height: 320px;
+    min-height: 220px;
+    max-height: 352px;
 }
 
 .chatbot-msg {
